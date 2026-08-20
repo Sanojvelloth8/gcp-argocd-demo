@@ -40,3 +40,9 @@ variable "gitops_repo_url" {
   description = "Git URL of the repo ArgoCD should watch (the gitops/ folder in this same repo)"
   type        = string
 }
+
+variable "github_token" {
+  description = "Token ArgoCD's repo-server uses to clone the private gitops repo (any credential with read access, e.g. gh CLI's own OAuth token)"
+  type        = string
+  sensitive   = true
+}

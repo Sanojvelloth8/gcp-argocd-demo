@@ -1,4 +1,8 @@
 project_id      = "your-gcp-project-id"
 gitops_repo_url = "https://github.com/your-github-username/gcp-argocd-demo.git"
+# Token ArgoCD uses to clone the private repo — any credential with read
+# access, e.g. output of `gh auth token`, or a fine-grained PAT scoped to
+# just this repo. Never commit the real value — this file is an example only.
+github_token = "your-github-token"
 
 # region/zone default to us-central1 / us-central1-a in variables.tf — override here if needed.
