@@ -3,6 +3,10 @@ kind: Service
 metadata:
   name: genai-app
   namespace: genai-demo
+  annotations:
+    # Container-native load balancing — required for the Ingress below to
+    # route directly to pod IPs instead of via NodePort.
+    cloud.google.com/neg: '{"ingress": true}'
 spec:
   selector:
     app: genai-app

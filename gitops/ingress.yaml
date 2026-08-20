@@ -1,0 +1,18 @@
+# GKE's built-in Ingress controller (class "gce") provisions a real Google
+# Cloud external HTTP Load Balancer for this — no controller pods to install.
+# Plain HTTP, no domain/TLS configured (that needs a real domain you control
+# for a Google-managed cert) — reachable at http://<EXTERNAL_IP>/ once the
+# load balancer finishes provisioning (a few minutes after first apply).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: genai-app
+  namespace: genai-demo
+  annotations:
+    kubernetes.io/ingress.class: "gce"
+spec:
+  defaultBackend:
+    service:
+      name: genai-app
+      port:
+        number: 8080
