@@ -81,6 +81,8 @@ kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.pas
 
 First request after a fresh deploy may be slow or return a 502/error — the Ollama pod pulls the model (~1GB) on first startup; check `kubectl get pods -n llm-inference` and wait for it to go `Ready` before asking anything.
 
+**Open-ended questions are slow.** This is CPU-only inference on a 1B model — a one-line joke returns in a few seconds, but an explanatory question ("what is a pod in Kubernetes?") can generate hundreds of tokens and take a minute or more. `app/main.py` caps generation at 200 tokens (`num_predict`) to keep this bounded, and both the backend→Ollama and frontend→backend timeouts are set generously (120s/130s) — but the real fix for this whole class of problem was `gitops/frontend-backendconfig.yaml`: GKE's Ingress defaults to a **30-second backend timeout**, which is shorter than Streamlit's WebSocket needs for slower answers. Without it, the backend finishes and logs `200 OK`, but the Load Balancer has already dropped the connection — so the browser shows nothing, no error, just silence. The `BackendConfig` raises this to 180s.
+
 ### Before a live demo
 
 Run this once, before you start talking, and leave it backgrounded for the whole session:

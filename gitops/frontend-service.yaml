@@ -5,6 +5,7 @@ metadata:
   namespace: genai-demo
   annotations:
     cloud.google.com/neg: '{"ingress": true}'
+    cloud.google.com/backend-config: '{"default": "genai-frontend-backendconfig"}'
 spec:
   selector:
     app: genai-frontend

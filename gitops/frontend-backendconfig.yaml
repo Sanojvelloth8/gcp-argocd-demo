@@ -1,0 +1,11 @@
+# GKE Ingress's default backend timeout is 30s — too short for Streamlit's
+# WebSocket-based UI when CPU inference takes longer than that. Without this,
+# the LB can silently drop the WebSocket mid-generation: the backend finishes
+# and logs 200 OK, but the browser never receives the result.
+apiVersion: cloud.google.com/v1
+kind: BackendConfig
+metadata:
+  name: genai-frontend-backendconfig
+  namespace: genai-demo
+spec:
+  timeoutSec: 180

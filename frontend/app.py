@@ -14,7 +14,7 @@ question = st.text_input("Ask something", placeholder="Tell me a one-line joke a
 if st.button("Ask", type="primary") and question:
     with st.spinner("Thinking..."):
         try:
-            resp = requests.get(f"{BACKEND_URL}/ask", params={"q": question}, timeout=60)
+            resp = requests.get(f"{BACKEND_URL}/ask", params={"q": question}, timeout=130)
             resp.raise_for_status()
             data = resp.json()
             st.write(data["answer"])
