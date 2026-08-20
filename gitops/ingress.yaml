@@ -3,6 +3,8 @@
 # Plain HTTP, no domain/TLS configured (that needs a real domain you control
 # for a Google-managed cert) — reachable at http://<EXTERNAL_IP>/ once the
 # load balancer finishes provisioning (a few minutes after first apply).
+# Points at the Streamlit frontend, not the raw API — genai-app stays
+# cluster-internal, reachable only via the frontend or port-forward.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -13,6 +15,6 @@ metadata:
 spec:
   defaultBackend:
     service:
-      name: genai-app
+      name: genai-frontend
       port:
-        number: 8080
+        number: 8501

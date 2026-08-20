@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: genai-frontend
+  namespace: genai-demo
+  labels:
+    app: genai-frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: genai-frontend
+  template:
+    metadata:
+      labels:
+        app: genai-frontend
+    spec:
+      containers:
+        - name: genai-frontend
+          # CI bumps the tag on every build.
+          image: us-central1-docker.pkg.dev/gcp-argocd-demo/genai-demo/genai-frontend:latest
+          ports:
+            - containerPort: 8501
+          env:
+            - name: BACKEND_URL
+              value: "http://genai-app.genai-demo.svc.cluster.local:8080"
+          readinessProbe:
+            httpGet:
+              path: /_stcore/health
+              port: 8501
+          livenessProbe:
+            httpGet:
+              path: /_stcore/health
+              port: 8501
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 250m
+              memory: 512Mi

@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: genai-frontend
+  namespace: genai-demo
+  annotations:
+    cloud.google.com/neg: '{"ingress": true}'
+spec:
+  selector:
+    app: genai-frontend
+  ports:
+    - port: 8501
+      targetPort: 8501
+  type: ClusterIP

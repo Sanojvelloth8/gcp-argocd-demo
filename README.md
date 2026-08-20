@@ -1,13 +1,17 @@
 # gcp-argocd-demo
 
-A GitOps playground on GKE: Terraform provisions the cloud infra, GitHub Actions runs both Terraform and the app build, and ArgoCD watches this repo and deploys everything into the cluster. Two things run there — a self-hosted [Ollama](https://ollama.com) LLM server (CPU-only, a small `llama3.2:1b` model) in the `llm-inference` namespace, and a tiny FastAPI chat app in the `genai-demo` namespace that calls it over the cluster's internal network. No external LLM API, no API key, no billing outside the GKE compute itself.
+A GitOps playground on GKE: Terraform provisions the cloud infra, GitHub Actions runs both Terraform and the app build, and ArgoCD watches this repo and deploys everything into the cluster. Three things run there, all in `genai-demo` except inference: a **Streamlit frontend** (`frontend/`) for a real chat UI, a tiny **FastAPI backend** (`app/`) that's now cluster-internal only, and a self-hosted **[Ollama](https://ollama.com)** LLM server (CPU-only, `llama3.2:1b`) in its own `llm-inference` namespace. No external LLM API, no API key, no billing outside the GKE compute itself.
+
+```
+Internet → Ingress → genai-frontend (Streamlit) → genai-app (FastAPI) → ollama (llm-inference ns)
+```
 
 ## Architecture
 
 - **Terraform (`infra/`)** — owns cloud-level infra only: a zonal GKE **Standard** cluster (a single fixed `e2-standard-4` node pool, autoscaling 1-2 nodes), an Artifact Registry repo, and a one-time ArgoCD install + root `Application`. State lives in a GCS bucket, not locally, so both your machine and CI operate on the same state.
-- **ArgoCD, driven by `gitops/`** — owns everything inside the cluster: both namespaces, the Ollama Deployment + Service, and the chat app's Deployment. Terraform never touches these after the initial bootstrap.
+- **ArgoCD, driven by `gitops/`** — owns everything inside the cluster: both namespaces, the Ollama Deployment + Service, the FastAPI backend's Deployment + Service, the Streamlit frontend's Deployment + Service, and the Ingress. Terraform never touches these after the initial bootstrap.
 - **`.github/workflows/terraform.yml`** — plans on pull requests that touch `infra/**`, applies on merge to `main`.
-- **`.github/workflows/build-and-push.yml`** — builds the app image, pushes it to Artifact Registry, and bumps the image tag in `gitops/deployment.yaml`. It never talks to the cluster — ArgoCD is the only thing with deploy access, and it gets there by watching Git.
+- **`.github/workflows/build-and-push.yml`** — builds *both* the backend (`app/`) and frontend (`frontend/`) images on any push touching either, pushes both to Artifact Registry, and bumps both image tags in `gitops/`. It never talks to the cluster — ArgoCD is the only thing with deploy access, and it gets there by watching Git.
 - **Auth for both workflows**: a single GCP service account key (`GCP_SA_KEY`, a GitHub Actions secret), not Workload Identity Federation. Simpler to set up for a demo — the tradeoff is a static, long-lived credential instead of short-lived OIDC-issued tokens, which is fine here but not what you'd want for a production setup.
 
 ### Why Ollama instead of a hosted API
@@ -57,11 +61,15 @@ Still needed before the first CI run:
    kubectl get pods -n llm-inference -w    # wait for ollama to pull the model
    kubectl get pods -n genai-demo -w
    ```
-   The app Deployment will sit in `ImagePullBackOff` until `build-and-push.yml` runs — it triggers on any push touching `app/**`, so it runs automatically once your first commit lands on `main`.
+   The `genai-app` and `genai-frontend` Deployments will sit in `ImagePullBackOff` until `build-and-push.yml` runs — it triggers on any push touching `app/**` or `frontend/**`, so it runs automatically once your first commit lands on `main`.
 
 ## Try it
 
 ```sh
+kubectl port-forward -n genai-demo svc/genai-frontend 8501:8501 &
+# open http://localhost:8501 — the Streamlit chat UI
+
+# or hit the backend API directly:
 kubectl port-forward -n genai-demo svc/genai-app 8080:8080 &
 curl "localhost:8080/ask?q=tell+me+a+one-line+joke+about+kubernetes"
 
@@ -71,7 +79,7 @@ kubectl port-forward -n argocd svc/argocd-server 8081:443 &
 kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d
 ```
 
-First request after a fresh deploy may be slow or return a 502 — the Ollama pod pulls the model (~1GB) on first startup; check `kubectl get pods -n llm-inference` and wait for it to go `Ready` before hitting `/ask`.
+First request after a fresh deploy may be slow or return a 502/error — the Ollama pod pulls the model (~1GB) on first startup; check `kubectl get pods -n llm-inference` and wait for it to go `Ready` before asking anything.
 
 ### Before a live demo
 
@@ -81,19 +89,18 @@ Run this once, before you start talking, and leave it backgrounded for the whole
 kubectl port-forward -n argocd svc/argocd-server 8081:443 &
 ```
 
-That's the only port-forward you need. `genai-app` is public via the Ingress below — no port-forward for that, and `llm-inference` (Ollama) is never accessed directly at all, so there's nothing to forward for it either.
+That's the only port-forward you need. `genai-frontend` is public via the Ingress below — no port-forward for that. `genai-app` (the backend API) and `llm-inference` (Ollama) are both cluster-internal only, reached via cluster DNS, never exposed directly.
 
 ### Public access
 
-`gitops/ingress.yaml` puts `genai-app` behind GKE's built-in Ingress controller — no controller to install, it just provisions a real Google Cloud HTTP Load Balancer. Get the external IP once it finishes provisioning (a few minutes after the Ingress first syncs):
+`gitops/ingress.yaml` puts `genai-frontend` (the Streamlit UI, not the raw API) behind GKE's built-in Ingress controller — no controller to install, it just provisions a real Google Cloud HTTP Load Balancer. Get the external IP once it finishes provisioning (a few minutes after the Ingress first syncs):
 
 ```sh
 kubectl get ingress -n genai-demo genai-app -w
-# once ADDRESS is populated:
-curl "http://<EXTERNAL_IP>/ask?q=tell+me+a+one-line+joke+about+kubernetes"
+# once ADDRESS is populated, open http://<EXTERNAL_IP>/ in a browser
 ```
 
-Plain HTTP, no domain or TLS (a Google-managed cert needs a real domain you control — out of scope for this demo). **There's no auth or rate limiting on `/ask`** — anyone who finds the IP can hit it and consume the Ollama pod's CPU. Fine for a short-lived demo; don't leave it up unattended. This also adds real, continuous billing (a GCP HTTP Load Balancer, roughly $18-25/month) on top of the Ollama pod's compute cost — tear it down along with everything else when you're done (`kubectl delete -f gitops/ingress.yaml` removes just the load balancer, or `terraform destroy` per the teardown section removes everything).
+Plain HTTP, no domain or TLS (a Google-managed cert needs a real domain you control — out of scope for this demo). **There's no auth or rate limiting** — anyone who finds the IP can use it and consume the Ollama pod's CPU. Fine for a short-lived demo; don't leave it up unattended. This also adds real, continuous billing (a GCP HTTP Load Balancer, roughly $18-25/month) on top of the Ollama pod's compute cost — tear it down along with everything else when you're done (`kubectl delete -f gitops/ingress.yaml` removes just the load balancer, or `terraform destroy` per the teardown section removes everything).
 
 ## Changing infra
 
@@ -101,7 +108,7 @@ Edit anything under `infra/`, open a PR — `terraform.yml` runs `terraform plan
 
 ## See the GitOps loop in action
 
-Change something in `app/main.py`, commit, and push to `main`. GitHub Actions builds and pushes a new image, bumps the tag in `gitops/deployment.yaml`, and commits that change back. ArgoCD notices the Git change within its poll interval (or immediately if you click "Refresh" in the UI) and rolls out the new image — no `kubectl apply` involved.
+Change something in `app/main.py` or `frontend/app.py`, commit, and push to `main`. GitHub Actions builds and pushes new images for both, bumps the tags in `gitops/deployment.yaml` and `gitops/frontend-deployment.yaml`, and commits that change back. ArgoCD notices the Git change within its poll interval (or immediately if you click "Refresh" in the UI) and rolls out the new images — no `kubectl apply` involved.
 
 ## Cost and teardown
 
