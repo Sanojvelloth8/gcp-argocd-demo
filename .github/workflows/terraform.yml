@@ -6,8 +6,6 @@ on:
       - "infra/**"
   push:
     branches: [main]
-    paths:
-      - "infra/**"
   workflow_dispatch: {}
 
 permissions:

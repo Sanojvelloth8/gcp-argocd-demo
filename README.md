@@ -108,6 +108,21 @@ Plain HTTP, no domain or TLS (a Google-managed cert needs a real domain you cont
 
 Edit anything under `infra/`, open a PR — `terraform.yml` runs `terraform plan` and you can read the diff in the Actions log. Merge to `main` and it applies automatically.
 
+## Rebuilding from a full teardown
+
+After a `terraform destroy` (see below), everything except the GCP project, `sanoj-admin` service account, `GCP_SA_KEY`/`GCP_PROJECT_ID`, and the `gcp-argocd-demo-tfstate` bucket is gone — including Artifact Registry, so there are no images to deploy. A single push to `main` (any file — `terraform.yml`'s push trigger isn't path-restricted) drives the full rebuild in the correct order:
+
+1. `terraform.yml` runs first — recreates the cluster, Artifact Registry, and ArgoCD (~13-15 min)
+2. `build-and-push.yml` triggers automatically once Terraform succeeds (via a `workflow_run` chain, not its own push trigger) — builds and pushes both images (~1-2 min)
+3. ArgoCD picks up the new image tags and rolls out the app; Ollama's pod then pulls its model (~2-3 min); the Ingress needs a few more minutes to provision its Load Balancer
+
+No manual re-triggering needed for the normal case. If you want to trigger either workflow on demand without a code change, both support manual dispatch:
+
+```sh
+gh workflow run terraform.yml --repo Sanojvelloth8/gcp-argocd-demo --ref main
+gh workflow run build-and-push.yml --repo Sanojvelloth8/gcp-argocd-demo --ref main
+```
+
 ## See the GitOps loop in action
 
 Change something in `app/main.py` or `frontend/app.py`, commit, and push to `main`. GitHub Actions builds and pushes new images for both, bumps the tags in `gitops/deployment.yaml` and `gitops/frontend-deployment.yaml`, and commits that change back. ArgoCD notices the Git change within its poll interval (or immediately if you click "Refresh" in the UI) and rolls out the new images — no `kubectl apply` involved.
