@@ -1,0 +1,5 @@
+project_id      = "your-gcp-project-id"
+github_repo     = "your-github-username/gcp-argocd-demo"
+gitops_repo_url = "https://github.com/your-github-username/gcp-argocd-demo.git"
+
+# region/zone default to us-central1 / us-central1-a in variables.tf — override here if needed.
