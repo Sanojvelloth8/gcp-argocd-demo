@@ -9,12 +9,6 @@ variable "region" {
   default     = "us-central1"
 }
 
-variable "zone" {
-  description = "GCP zone for the GKE Autopilot cluster (zonal keeps it in the free cluster-management tier)"
-  type        = string
-  default     = "us-central1-a"
-}
-
 variable "cluster_name" {
   type    = string
   default = "genai-demo"

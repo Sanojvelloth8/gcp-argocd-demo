@@ -44,7 +44,7 @@ Still needed before the first CI run:
 
 2. **Get cluster credentials locally** (once the cluster exists):
    ```sh
-   gcloud container clusters get-credentials genai-demo --zone us-central1-a --project gcp-argocd-demo
+   gcloud container clusters get-credentials genai-demo --region us-central1 --project gcp-argocd-demo
    ```
 
 3. **Watch it come up:**

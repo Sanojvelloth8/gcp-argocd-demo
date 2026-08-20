@@ -11,5 +11,5 @@ output "artifact_registry_repo" {
 }
 
 output "get_credentials_command" {
-  value = "gcloud container clusters get-credentials ${google_container_cluster.this.name} --zone ${var.zone} --project ${var.project_id}"
+  value = "gcloud container clusters get-credentials ${google_container_cluster.this.name} --region ${var.region} --project ${var.project_id}"
 }
