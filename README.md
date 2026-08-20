@@ -4,7 +4,7 @@ A GitOps playground on GKE: Terraform provisions the cloud infra, GitHub Actions
 
 ## Architecture
 
-- **Terraform (`infra/`)** — owns cloud-level infra only: a zonal GKE Autopilot cluster, an Artifact Registry repo, and a one-time ArgoCD install + root `Application`. State lives in a GCS bucket, not locally, so both your machine and CI operate on the same state.
+- **Terraform (`infra/`)** — owns cloud-level infra only: a zonal GKE **Standard** cluster (a single fixed `e2-standard-4` node pool, autoscaling 1-2 nodes), an Artifact Registry repo, and a one-time ArgoCD install + root `Application`. State lives in a GCS bucket, not locally, so both your machine and CI operate on the same state.
 - **ArgoCD, driven by `gitops/`** — owns everything inside the cluster: both namespaces, the Ollama Deployment + Service, and the chat app's Deployment. Terraform never touches these after the initial bootstrap.
 - **`.github/workflows/terraform.yml`** — plans on pull requests that touch `infra/**`, applies on merge to `main`.
 - **`.github/workflows/build-and-push.yml`** — builds the app image, pushes it to Artifact Registry, and bumps the image tag in `gitops/deployment.yaml`. It never talks to the cluster — ArgoCD is the only thing with deploy access, and it gets there by watching Git.
@@ -12,7 +12,11 @@ A GitOps playground on GKE: Terraform provisions the cloud infra, GitHub Actions
 
 ### Why Ollama instead of a hosted API
 
-vLLM (the other common self-hosted option) is built for GPU-batched serving — running it means provisioning a GPU node pool, which adds real cost and Autopilot GPU-quota complexity for a demo. Ollama runs fine on plain CPU with a small quantized model, so the whole thing stays on ordinary Autopilot compute with no external billing account to wire up.
+vLLM (the other common self-hosted option) is built for GPU-batched serving — running it means provisioning a GPU node pool, which adds real cost and GPU-quota complexity for a demo. Ollama runs fine on plain CPU with a small quantized model, so the whole thing stays on ordinary compute with no external billing account to wire up.
+
+### Why GKE Standard instead of Autopilot
+
+Originally built on Autopilot, but Autopilot's per-workload dynamic node provisioning kept tripping this project's default Compute Engine quota (`CPUS_ALL_REGIONS`, 12 vCPUs project-wide) — it tries several different machine shapes across zones to bin-pack pods, and each attempt is a separate quota draw. GKE Standard's `infra/gke.tf` defines one fixed node pool (`e2-standard-4`, autoscaling 1-2 nodes) instead, so total CPU demand is predictable and capped well under the quota. If you've had this quota raised (Console → IAM & Admin → Quotas → `CPUs (all regions)`), Autopilot would work fine too — this is a workaround for the default quota, not a rejection of Autopilot generally.
 
 ## Prerequisites — already in place
 
@@ -44,7 +48,7 @@ Still needed before the first CI run:
 
 2. **Get cluster credentials locally** (once the cluster exists):
    ```sh
-   gcloud container clusters get-credentials genai-demo --region us-central1 --project gcp-argocd-demo
+   gcloud container clusters get-credentials genai-demo --zone us-central1-a --project gcp-argocd-demo
    ```
 
 3. **Watch it come up:**
@@ -101,7 +105,7 @@ Change something in `app/main.py`, commit, and push to `main`. GitHub Actions bu
 
 ## Cost and teardown
 
-GKE Autopilot's cluster management fee is waived for one zonal cluster per billing account. You still pay for pod compute while it's running — the chat app is negligible, but the Ollama pod requests 2 CPU / 4Gi memory to run the model, which is the bulk of this demo's cost. There's no external API billing — everything runs on cluster compute you already provisioned. **Tear down when you're done**:
+GKE's cluster management fee is waived for one zonal cluster per billing account. You still pay for the node pool's compute while it's running — one `e2-standard-4` node (4 vCPU / 16GB) covers ArgoCD, `genai-app`, and Ollama comfortably. There's no external API billing — everything runs on cluster compute you already provisioned. **Tear down when you're done**:
 
 ```sh
 cd infra

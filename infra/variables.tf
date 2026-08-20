@@ -9,9 +9,21 @@ variable "region" {
   default     = "us-central1"
 }
 
+variable "zone" {
+  description = "GCP zone for the GKE cluster and its node pool"
+  type        = string
+  default     = "us-central1-a"
+}
+
 variable "cluster_name" {
   type    = string
   default = "genai-demo"
+}
+
+variable "node_machine_type" {
+  description = "Machine type for the GKE node pool"
+  type        = string
+  default     = "e2-standard-4"
 }
 
 variable "app_namespace" {
