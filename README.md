@@ -1,6 +1,6 @@
 # gcp-argocd-demo
 
-A GitOps playground on GKE: Terraform provisions the cloud infra, GitHub Actions runs both Terraform and the app build, and ArgoCD watches this repo and deploys everything into the cluster. Three things run there, all in `genai-demo` except inference: a **Streamlit frontend** (`frontend/`) for a real chat UI, a tiny **FastAPI backend** (`app/`) that's now cluster-internal only, and a self-hosted **[Ollama](https://ollama.com)** LLM server (CPU-only, `llama3.2:1b`) in its own `llm-inference` namespace. No external LLM API, no API key, no billing outside the GKE compute itself.
+A GitOps playground on GKE: Terraform provisions the cloud infra, GitHub Actions runs both Terraform and the app build, and ArgoCD watches this repo and deploys everything into the cluster. Three things run there, all in `genai-demo` except inference: a **Streamlit frontend** (`frontend/`) for a real chat UI, a tiny **FastAPI backend** (`app/`) that's now cluster-internal only, and a self-hosted **[Ollama](https://ollama.com)** LLM server (CPU-only, `llama3.2:1b`) in its own `llm-inference` namespace. No external LLM API, no API key, no billing outside the GKE compute itself
 
 ```
 Internet → Ingress → genai-frontend (Streamlit) → genai-app (FastAPI) → ollama (llm-inference ns)
