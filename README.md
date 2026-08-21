@@ -22,18 +22,20 @@ vLLM (the other common self-hosted option) is built for GPU-batched serving — 
 
 Originally built on Autopilot, but Autopilot's per-workload dynamic node provisioning kept tripping this project's default Compute Engine quota (`CPUS_ALL_REGIONS`, 12 vCPUs project-wide) — it tries several different machine shapes across zones to bin-pack pods, and each attempt is a separate quota draw. GKE Standard's `infra/gke.tf` defines one fixed node pool (`e2-standard-4`, autoscaling 1-2 nodes) instead, so total CPU demand is predictable and capped well under the quota. If you've had this quota raised (Console → IAM & Admin → Quotas → `CPUs (all regions)`), Autopilot would work fine too — this is a workaround for the default quota, not a rejection of Autopilot generally.
 
-## Prerequisites — already in place
+## Prerequisites — set these up first
+
+To run this yourself: fork this repo (or clone it and push to your own new GitHub repo — you won't have push access here), then set up:
 
 - **GCP project**: `<your-gcp-project-id>`, billing linked
-- **GitHub repo**: [`Sanojvelloth8/gcp-argocd-demo`](https://github.com/Sanojvelloth8/gcp-argocd-demo)
-- **Service account**: `<your-admin-sa>@<your-gcp-project-id>.iam.gserviceaccount.com` (project `roles/owner`), its key stored as the `GCP_SA_KEY` secret on the repo
+- **GitHub repo**: your fork/copy of this repo
+- **Service account**: `<your-admin-sa>@<your-gcp-project-id>.iam.gserviceaccount.com` (project `roles/owner`), its key stored as the `GCP_SA_KEY` secret on your repo
 - **Terraform state bucket**: `gs://<your-gcp-project-id>-tfstate` (versioned, `us-central1`)
 
 Still needed before the first CI run:
 
 1. **Set the `GCP_PROJECT_ID` repo variable** (both workflows read it):
    ```sh
-   gh variable set GCP_PROJECT_ID --repo Sanojvelloth8/gcp-argocd-demo --body <your-gcp-project-id>
+   gh variable set GCP_PROJECT_ID --repo <you>/<your-repo> --body <your-gcp-project-id>
    ```
 2. **Configure Terraform variables locally** (only needed if you want to run `terraform plan` locally before pushing — CI applies independently):
    ```sh
@@ -44,8 +46,9 @@ Still needed before the first CI run:
 
 ## Setup
 
-1. **Push this repo to GitHub** (already created — just push your commits):
+1. **Push to your own GitHub repo:**
    ```sh
+   git remote set-url origin https://github.com/<you>/<your-repo>.git
    git push -u origin main
    ```
    Pushing `infra/**` triggers `terraform.yml`, which runs `terraform apply` on `main` — this creates the cluster, Artifact Registry, and ArgoCD, and applies the root `Application`. Takes ~10-15 minutes, mostly the GKE cluster. Watch it in the repo's **Actions** tab.
@@ -119,8 +122,8 @@ After a `terraform destroy` (see below), everything except the GCP project, the 
 No manual re-triggering needed for the normal case. If you want to trigger either workflow on demand without a code change, both support manual dispatch:
 
 ```sh
-gh workflow run terraform.yml --repo Sanojvelloth8/gcp-argocd-demo --ref main
-gh workflow run build-and-push.yml --repo Sanojvelloth8/gcp-argocd-demo --ref main
+gh workflow run terraform.yml --repo <you>/<your-repo> --ref main
+gh workflow run build-and-push.yml --repo <you>/<your-repo> --ref main
 ```
 
 ## See the GitOps loop in action
