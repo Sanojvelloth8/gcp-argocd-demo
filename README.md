@@ -24,16 +24,16 @@ Originally built on Autopilot, but Autopilot's per-workload dynamic node provisi
 
 ## Prerequisites — already in place
 
-- **GCP project**: `gcp-argocd-demo`, billing linked
-- **GitHub repo**: [`Sanojvelloth8/gcp-argocd-demo`](https://github.com/Sanojvelloth8/gcp-argocd-demo) (private)
-- **Service account**: `sanoj-admin@gcp-argocd-demo.iam.gserviceaccount.com` (project `roles/owner`), its key stored as the `GCP_SA_KEY` secret on the repo
-- **Terraform state bucket**: `gs://gcp-argocd-demo-tfstate` (versioned, `us-central1`)
+- **GCP project**: `<your-gcp-project-id>`, billing linked
+- **GitHub repo**: [`Sanojvelloth8/gcp-argocd-demo`](https://github.com/Sanojvelloth8/gcp-argocd-demo)
+- **Service account**: `<your-admin-sa>@<your-gcp-project-id>.iam.gserviceaccount.com` (project `roles/owner`), its key stored as the `GCP_SA_KEY` secret on the repo
+- **Terraform state bucket**: `gs://<your-gcp-project-id>-tfstate` (versioned, `us-central1`)
 
 Still needed before the first CI run:
 
 1. **Set the `GCP_PROJECT_ID` repo variable** (both workflows read it):
    ```sh
-   gh variable set GCP_PROJECT_ID --repo Sanojvelloth8/gcp-argocd-demo --body gcp-argocd-demo
+   gh variable set GCP_PROJECT_ID --repo Sanojvelloth8/gcp-argocd-demo --body <your-gcp-project-id>
    ```
 2. **Configure Terraform variables locally** (only needed if you want to run `terraform plan` locally before pushing — CI applies independently):
    ```sh
@@ -52,7 +52,7 @@ Still needed before the first CI run:
 
 2. **Get cluster credentials locally** (once the cluster exists):
    ```sh
-   gcloud container clusters get-credentials genai-demo --zone us-central1-a --project gcp-argocd-demo
+   gcloud container clusters get-credentials genai-demo --zone us-central1-a --project <your-gcp-project-id>
    ```
 
 3. **Watch it come up:**
@@ -110,7 +110,7 @@ Edit anything under `infra/`, open a PR — `terraform.yml` runs `terraform plan
 
 ## Rebuilding from a full teardown
 
-After a `terraform destroy` (see below), everything except the GCP project, `sanoj-admin` service account, `GCP_SA_KEY`/`GCP_PROJECT_ID`, and the `gcp-argocd-demo-tfstate` bucket is gone — including Artifact Registry, so there are no images to deploy. A single push to `main` (any file — `terraform.yml`'s push trigger isn't path-restricted) drives the full rebuild in the correct order:
+After a `terraform destroy` (see below), everything except the GCP project, the admin service account, `GCP_SA_KEY`/`GCP_PROJECT_ID`, and the Terraform state bucket is gone — including Artifact Registry, so there are no images to deploy. A single push to `main` (any file — `terraform.yml`'s push trigger isn't path-restricted) drives the full rebuild in the correct order:
 
 1. `terraform.yml` runs first — recreates the cluster, Artifact Registry, and ArgoCD (~13-15 min)
 2. `build-and-push.yml` triggers automatically once Terraform succeeds (via a `workflow_run` chain, not its own push trigger) — builds and pushes both images (~1-2 min)
@@ -133,18 +133,18 @@ GKE's cluster management fee is waived for one zonal cluster per billing account
 
 ```sh
 cd infra
-terraform init -backend-config="bucket=gcp-argocd-demo-tfstate" -backend-config="prefix=gcp-argocd-demo"
+terraform init -backend-config="bucket=<your-gcp-project-id>-tfstate" -backend-config="prefix=<your-gcp-project-id>"
 terraform destroy
 ```
 
 Then clean up anything Terraform doesn't own:
 ```sh
-gcloud artifacts docker images list us-central1-docker.pkg.dev/gcp-argocd-demo/genai-demo
+gcloud artifacts docker images list us-central1-docker.pkg.dev/<your-gcp-project-id>/genai-demo
 # delete any images terraform destroy left behind (it deletes the repo, but double check)
 
-# the state bucket, sanoj-admin SA, and its key were created outside Terraform, so destroy won't remove them:
-gcloud storage rm -r gs://gcp-argocd-demo-tfstate
-gcloud iam service-accounts keys list --iam-account=sanoj-admin@gcp-argocd-demo.iam.gserviceaccount.com
-gcloud iam service-accounts keys delete <KEY_ID> --iam-account=sanoj-admin@gcp-argocd-demo.iam.gserviceaccount.com
-gcloud iam service-accounts delete sanoj-admin@gcp-argocd-demo.iam.gserviceaccount.com
+# the state bucket, admin SA, and its key were created outside Terraform, so destroy won't remove them:
+gcloud storage rm -r gs://<your-gcp-project-id>-tfstate
+gcloud iam service-accounts keys list --iam-account=<your-admin-sa>@<your-gcp-project-id>.iam.gserviceaccount.com
+gcloud iam service-accounts keys delete <KEY_ID> --iam-account=<your-admin-sa>@<your-gcp-project-id>.iam.gserviceaccount.com
+gcloud iam service-accounts delete <your-admin-sa>@<your-gcp-project-id>.iam.gserviceaccount.com
 ```
