@@ -18,7 +18,7 @@ spec:
       containers:
         - name: genai-frontend
           # CI bumps the tag on every build.
-          image: us-central1-docker.pkg.dev/gcp-argocd-demo/genai-demo/genai-frontend:a4308d0f228fe4a38a500f5ac2d7921c3cb7f14e
+          image: us-central1-docker.pkg.dev/gcp-argocd-demo/genai-demo/genai-frontend:fba870463d3d491c8c97741cba83aee02a310878
           ports:
             - containerPort: 8501
           env:
